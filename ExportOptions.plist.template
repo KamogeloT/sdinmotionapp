@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Distribution method: app-store for TestFlight/App Store -->
+    <key>method</key>
+    <string>app-store</string>
+    
+    <!-- Your Apple Developer Team ID (10 characters) -->
+    <!-- Find at: https://developer.apple.com/account/#!/membership -->
+    <!-- Example: ABC123DEFG -->
+    <key>teamID</key>
+    <string>YOUR_TEAM_ID_HERE</string>
+    
+    <!-- Upload bitcode for Apple optimization -->
+    <key>uploadBitcode</key>
+    <true/>
+    
+    <!-- Upload debug symbols for crash reports -->
+    <key>uploadSymbols</key>
+    <true/>
+    
+    <!-- Compile bitcode during export -->
+    <key>compileBitcode</key>
+    <true/>
+    
+    <!-- Destination: upload to App Store Connect -->
+    <key>destination</key>
+    <string>upload</string>
+    
+    <!-- Signing style: automatic (Xcode manages) -->
+    <key>signingStyle</key>
+    <string>automatic</string>
+    
+    <!-- Strip Swift symbols to reduce size -->
+    <key>stripSwiftSymbols</key>
+    <true/>
+    
+    <!-- App thinning: create variants for different devices -->
+    <key>thinning</key>
+    <string>&lt;thin-for-all-variants&gt;</string>
+</dict>
+</plist>
+
+<!-- INSTRUCTIONS:
+1. Copy this file to: ExportOptions.plist (remove .template)
+2. Replace YOUR_TEAM_ID_HERE with your actual Team ID
+3. Find your Team ID:
+   - Go to: https://developer.apple.com/account/
+   - Click "Membership" in sidebar
+   - Copy the "Team ID" (10 characters)
+4. Save the file
+5. Run: ./testflight-deploy.sh
+-->
+
