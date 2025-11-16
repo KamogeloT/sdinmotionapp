@@ -2,6 +2,47 @@
 
 All notable changes to the Municipal Fault Reporting Mobile App.
 
+## [1.8.0] - 2025-11-16
+
+### 🚀 iOS Support & Production Improvements
+
+#### Added
+- ✅ **Complete iOS support with TestFlight deployment**
+  - Full iOS app configuration and build setup
+  - TestFlight deployment scripts and documentation
+  - Xcode project configuration with proper versioning
+  - iOS-specific permissions (Camera, Location, Photo Library)
+- 📚 **Comprehensive iOS documentation**
+  - `TESTFLIGHT_DEPLOYMENT.md` - Complete TestFlight guide
+  - `MAC_QUICK_START.md` - Quick setup for Mac developers
+  - `MACOS_ALTERNATIVES.md` - Options for Windows users
+  - `IOS_COMPLETE_SETUP.md` - Full iOS development guide
+  - `IOS_FEATURES_COMPATIBILITY.md` - Feature checklist
+  - `ENV_SETUP.md` - Environment variables guide
+- 🤖 **Automated deployment scripts**
+  - `testflight-deploy.sh` - One-command TestFlight deployment
+  - `build-ios.sh` - Automated iOS build process
+  - `ExportOptions.plist.template` - App Store export configuration
+
+#### Improved
+- 🎨 **Updated app display name to SDINMOTION**
+  - Consistent branding across iOS and Android
+  - Professional app naming in stores and devices
+- 🔧 **Enhanced Xcode scheme configuration**
+  - Fixed archiving issues
+  - Proper release build configuration
+- 📦 **Maintained photo upload stability**
+  - All 1.7.7 photo fixes included
+  - Standardized image processing across platforms
+
+#### Technical
+- iOS version: 1.8.0 (build 18)
+- Android version: 1.8.0 (versionCode: 18)
+- Bundle ID: com.municipality.faultreporter
+- Branch: feature/iOS_App merged to master
+
+---
+
 ## [1.7.7] - 2025-11-12
 
 ### 🔥 Critical Fix - Photo Upload Issue Resolved

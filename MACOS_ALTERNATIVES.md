@@ -334,3 +334,4 @@ Let me know which option you want to pursue and I can provide more detailed inst
 
 **Quick answer:** If you have a friend with a Mac, that's your best bet for a one-time TestFlight deployment. The whole process takes about 2-3 hours.
 
+
