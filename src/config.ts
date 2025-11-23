@@ -23,6 +23,10 @@ export interface AppConfig {
     supportEmail: string;
     supportPhone: string;
   };
+  areas: {
+    types: ('Township' | 'Town')[];
+    cities: ('Ventersdorp' | 'Potchefstroom')[];
+  };
 }
 
 // Default configuration
@@ -50,6 +54,10 @@ export const defaultConfig: AppConfig = {
     name: 'SDINMOTION',
     supportEmail: 'support@municipality.gov.za',
     supportPhone: '+27 18 297 5111',
+  },
+  areas: {
+    types: ['Township', 'Town'],
+    cities: ['Ventersdorp', 'Potchefstroom'],
   },
 };
 

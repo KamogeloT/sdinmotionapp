@@ -705,6 +705,14 @@ class Bitrix24Service {
    * Generate detailed task description
    */
   private generateTaskDescription(faultReport: FaultReport): string {
+    const areaInfo = faultReport.area && faultReport.city 
+      ? `Area: ${faultReport.area}\nCity: ${faultReport.city}\n`
+      : faultReport.area 
+        ? `Area: ${faultReport.area}\n`
+        : faultReport.city
+          ? `City: ${faultReport.city}\n`
+          : '';
+    
     return `
 FAULT REPORT DETAILS:
 ====================
@@ -713,7 +721,7 @@ Reference Number: ${faultReport.refNumber}
 Reported By: ${faultReport.fullName}
 Contact: ${faultReport.contactNumber}
 Email: ${faultReport.email || 'Not provided'}
-Location: ${faultReport.address}
+${areaInfo}Location: ${faultReport.address}
 
 Issue Type: ${faultReport.formType}
 Specific Issue: ${faultReport.specificField}

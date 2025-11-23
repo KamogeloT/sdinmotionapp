@@ -3,6 +3,7 @@ import { WaterIcon, PowerIcon, RoadIcon, TrashIcon, LocationMarkerIcon, CameraIc
 import { bitrix24Service } from '../services/bitrix24Service';
 import { storageService } from '../services/storageService';
 import { FaultReport } from '../types';
+import { config } from '../config';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Geolocation } from '@capacitor/geolocation';
 
@@ -415,6 +416,8 @@ const FaultForm: React.FC<FaultFormProps> = ({ formType, onSuccess }) => {
     contactNumber: '',
     email: '',
     specificField: '',
+    area: '',
+    city: '',
     details: '',
   });
   const [address, setAddress] = useState('');
@@ -430,6 +433,8 @@ const FaultForm: React.FC<FaultFormProps> = ({ formType, onSuccess }) => {
         contactNumber: draft.contactNumber || '',
         email: draft.email || '',
         specificField: draft.specificField || '',
+        area: draft.area || '',
+        city: draft.city || '',
         details: draft.details || '',
       });
       setAddress(draft.address || '');
@@ -441,6 +446,8 @@ const FaultForm: React.FC<FaultFormProps> = ({ formType, onSuccess }) => {
       if (formData.fullName || formData.details) {
         storageService.saveDraft({
           ...formData,
+          area: formData.area as 'Township' | 'Town' | undefined,
+          city: formData.city as 'Ventersdorp' | 'Potchefstroom' | undefined,
           address,
           formType,
         });
@@ -471,6 +478,12 @@ const FaultForm: React.FC<FaultFormProps> = ({ formType, onSuccess }) => {
       email: formData.email,
       formType,
       specificField: formData.specificField,
+      area: (formData.area && (formData.area === 'Township' || formData.area === 'Town')) 
+        ? formData.area as 'Township' | 'Town'
+        : undefined,
+      city: (formData.city && (formData.city === 'Ventersdorp' || formData.city === 'Potchefstroom'))
+        ? formData.city as 'Ventersdorp' | 'Potchefstroom'
+        : undefined,
       address,
       details: formData.details,
       photoFile: file || undefined,
@@ -573,6 +586,32 @@ const FaultForm: React.FC<FaultFormProps> = ({ formType, onSuccess }) => {
         <option value="">Select an issue...</option>
         {issueOptions[formType].map(option => (
           <option key={option} value={option}>{option}</option>
+        ))}
+      </SelectField>
+
+      <SelectField
+        id="area"
+        label="Area"
+        value={formData.area}
+        onChange={handleChange}
+        required={false}
+      >
+        <option value="">Select area (optional)</option>
+        {config.areas.types.map(area => (
+          <option key={area} value={area}>{area}</option>
+        ))}
+      </SelectField>
+
+      <SelectField
+        id="city"
+        label="City"
+        value={formData.city}
+        onChange={handleChange}
+        required={false}
+      >
+        <option value="">Select city (optional)</option>
+        {config.areas.cities.map(city => (
+          <option key={city} value={city}>{city}</option>
         ))}
       </SelectField>
 
