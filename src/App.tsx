@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { HomePage } from './components/HomePage';
 import { FaultReporting } from './components/FaultReporting';
 import { ReportHistory } from './components/ReportHistory';
 import { Navigation } from './components/Navigation';
 import { SplashScreen } from './components/SplashScreen';
+import { testSupabaseConnection } from './utils/testSupabase';
 
 type View = 'home' | 'report' | 'history';
 type FaultType = 'Water' | 'Electricity' | 'Roads' | 'Waste';
@@ -12,6 +13,11 @@ function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [currentView, setCurrentView] = useState<View>('home');
   const [selectedFaultType, setSelectedFaultType] = useState<FaultType | null>(null);
+
+  // Test Supabase connection on app startup
+  useEffect(() => {
+    testSupabaseConnection().catch(console.error);
+  }, []);
 
   const handleNavigate = (view: View, faultType?: FaultType) => {
     setCurrentView(view);
