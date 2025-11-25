@@ -6,6 +6,8 @@ export interface FaultReport {
   fullName: string;
   contactNumber: string;
   email?: string;
+  cityCode?: string; // City code from cities table
+  locationType?: 'town' | 'township' | null; // Location type if applicable
   formType: 'Water' | 'Electricity' | 'Roads' | 'Waste';
   specificField: string;
   address: string;

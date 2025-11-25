@@ -3,9 +3,10 @@
  * Supabase Database Setup Script
  * 
  * This script:
- * 1. Creates the necessary tables (department_groups, app_config)
- * 2. Seeds initial data
- * 3. Verifies the setup
+ * 1. Seeds cities
+ * 2. Seeds department groups linked to cities with location types
+ * 3. Seeds app configuration
+ * 4. Verifies the setup
  * 
  * Usage:
  *   npm run setup:supabase
@@ -42,35 +43,58 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Default data for seeding
-const defaultDepartmentGroups = [
+// Update these with your actual cities and Bitrix24 group IDs
+
+interface City {
+  code: string;
+  name: string;
+  has_town_township: boolean;
+  is_active: boolean;
+  display_order: number;
+}
+
+interface DepartmentGroup {
+  city_code: string;
+  location_type: 'town' | 'township' | null;
+  department_code: 'water' | 'electricity' | 'roads' | 'waste';
+  department_name: string;
+  bitrix24_group_id: string;
+  bitrix24_drive_folder_id?: string;
+  default_user_id: string;
+  is_active: boolean;
+}
+
+const defaultCities: City[] = [
   {
-    code: 'water',
-    name: 'Water & Sanitation Department',
-    bitrix24_group_id: '5',
-    default_user_id: '1',
+    code: 'city1',
+    name: 'City 1',
+    has_town_township: true,
     is_active: true,
+    display_order: 1,
   },
   {
-    code: 'electricity',
-    name: 'Electricity Department',
-    bitrix24_group_id: '6',
-    default_user_id: '1',
+    code: 'city2',
+    name: 'City 2',
+    has_town_township: false,
     is_active: true,
+    display_order: 2,
   },
-  {
-    code: 'roads',
-    name: 'Roads & Infrastructure Department',
-    bitrix24_group_id: '7',
-    default_user_id: '1',
-    is_active: true,
-  },
-  {
-    code: 'waste',
-    name: 'Waste Management Department',
-    bitrix24_group_id: '8',
-    default_user_id: '1',
-    is_active: true,
-  },
+];
+
+const defaultDepartmentGroups: DepartmentGroup[] = [
+  // City 1 (has town/township)
+  { city_code: 'city1', location_type: 'town', department_code: 'water', department_name: 'Water & Sanitation Department', bitrix24_group_id: '5', default_user_id: '1', is_active: true },
+  { city_code: 'city1', location_type: 'township', department_code: 'water', department_name: 'Water & Sanitation Department', bitrix24_group_id: '15', default_user_id: '1', is_active: true },
+  { city_code: 'city1', location_type: null, department_code: 'electricity', department_name: 'Electricity Department', bitrix24_group_id: '6', default_user_id: '1', is_active: true },
+  { city_code: 'city1', location_type: 'town', department_code: 'roads', department_name: 'Roads & Infrastructure Department', bitrix24_group_id: '7', default_user_id: '1', is_active: true },
+  { city_code: 'city1', location_type: 'township', department_code: 'roads', department_name: 'Roads & Infrastructure Department', bitrix24_group_id: '17', default_user_id: '1', is_active: true },
+  { city_code: 'city1', location_type: null, department_code: 'waste', department_name: 'Waste Management Department', bitrix24_group_id: '8', default_user_id: '1', is_active: true },
+  
+  // City 2 (no town/township)
+  { city_code: 'city2', location_type: null, department_code: 'water', department_name: 'Water & Sanitation Department', bitrix24_group_id: '25', default_user_id: '1', is_active: true },
+  { city_code: 'city2', location_type: null, department_code: 'electricity', department_name: 'Electricity Department', bitrix24_group_id: '26', default_user_id: '1', is_active: true },
+  { city_code: 'city2', location_type: null, department_code: 'roads', department_name: 'Roads & Infrastructure Department', bitrix24_group_id: '27', default_user_id: '1', is_active: true },
+  { city_code: 'city2', location_type: null, department_code: 'waste', department_name: 'Waste Management Department', bitrix24_group_id: '28', default_user_id: '1', is_active: true },
 ];
 
 const defaultAppConfig = [
@@ -113,48 +137,12 @@ async function runSQLMigration(): Promise<boolean> {
     const sqlPath = path.join(__dirname, 'supabase-migration.sql');
     const sql = fs.readFileSync(sqlPath, 'utf-8');
 
-    // Split SQL into individual statements (split by semicolon and filter empty)
-    const statements = sql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--') && !s.startsWith('/*'));
-
-    console.log(`📝 Executing ${statements.length} SQL statements...`);
-
-    for (const statement of statements) {
-      // Skip comments and empty statements
-      if (statement.trim().startsWith('--') || statement.trim().length === 0) {
-        continue;
-      }
-
-      try {
-        const { error } = await supabase.rpc('exec_sql', { sql_query: statement });
-        
-        // If rpc doesn't exist, try direct query (requires service role key)
-        if (error && error.message?.includes('function') && error.message?.includes('does not exist')) {
-          // Try direct execution via PostgREST (won't work for DDL, but we'll handle via SQL editor)
-          console.warn('⚠️  Cannot execute DDL statements via REST API.');
-          console.warn('⚠️  Please run the SQL migration manually in Supabase SQL Editor:');
-          console.warn(`   ${supabaseUrl.replace('.supabase.co', '')}/sql`);
-          return false;
-        }
-
-        if (error) {
-          // Some errors are expected (e.g., "already exists"), so log but continue
-          if (!error.message.includes('already exists') && !error.message.includes('duplicate')) {
-            console.warn(`⚠️  SQL Warning: ${error.message}`);
-          }
-        }
-      } catch (err: any) {
-        // Skip errors for statements that may already exist
-        if (!err.message?.includes('already exists') && !err.message?.includes('duplicate')) {
-          console.warn(`⚠️  Statement warning: ${err.message}`);
-        }
-      }
-    }
-
-    console.log('✅ SQL migration completed (some statements may need manual execution)');
-    return true;
+    console.log('⚠️  Note: SQL migration contains DDL statements that may need manual execution.');
+    console.log('⚠️  Please run the SQL migration manually in Supabase SQL Editor:');
+    console.log(`   ${supabaseUrl.replace('.supabase.co', '').replace('https://', 'https://app.')}/sql`);
+    console.log('');
+    
+    return false; // Return false so user runs SQL manually
   } catch (error: any) {
     console.error('❌ SQL migration error:', error.message);
     return false;
@@ -162,23 +150,77 @@ async function runSQLMigration(): Promise<boolean> {
 }
 
 /**
+ * Seed cities
+ */
+async function seedCities(): Promise<Record<string, string>> {
+  try {
+    console.log('🌱 Seeding cities...');
+    const cityIdMap: Record<string, string> = {};
+
+    for (const city of defaultCities) {
+      const { data, error } = await supabase
+        .from('cities')
+        .upsert(city, { onConflict: 'code' })
+        .select('id, code');
+
+      if (error) {
+        console.error(`❌ Error seeding city ${city.code}:`, error.message);
+        throw error;
+      }
+
+      if (data && data.length > 0) {
+        cityIdMap[city.code] = data[0].id;
+        console.log(`  ✅ ${city.code}: ${city.name} (Town/Township: ${city.has_town_township ? 'Yes' : 'No'})`);
+      }
+    }
+
+    console.log('✅ Cities seeded successfully');
+    return cityIdMap;
+  } catch (error: any) {
+    console.error('❌ Error seeding cities:', error.message);
+    throw error;
+  }
+}
+
+/**
  * Seed department groups
  */
-async function seedDepartmentGroups(): Promise<boolean> {
+async function seedDepartmentGroups(cityIdMap: Record<string, string>): Promise<boolean> {
   try {
     console.log('🌱 Seeding department groups...');
 
     for (const dept of defaultDepartmentGroups) {
+      const cityId = cityIdMap[dept.city_code];
+      if (!cityId) {
+        console.error(`❌ City ${dept.city_code} not found, skipping department group`);
+        continue;
+      }
+
+      const departmentGroup = {
+        city_id: cityId,
+        location_type: dept.location_type,
+        department_code: dept.department_code,
+        department_name: dept.department_name,
+        bitrix24_group_id: dept.bitrix24_group_id,
+        bitrix24_drive_folder_id: dept.bitrix24_drive_folder_id,
+        default_user_id: dept.default_user_id,
+        is_active: dept.is_active,
+      };
+
       const { data, error } = await supabase
         .from('department_groups')
-        .upsert(dept, { onConflict: 'code' })
+        .upsert(departmentGroup, {
+          onConflict: 'city_id,location_type,department_code',
+        })
         .select();
 
       if (error) {
-        console.error(`❌ Error seeding ${dept.code}:`, error.message);
+        console.error(`❌ Error seeding ${dept.city_code}/${dept.location_type || 'none'}/${dept.department_code}:`, error.message);
         return false;
       }
-      console.log(`  ✅ ${dept.code}: ${dept.name}`);
+
+      const locationStr = dept.location_type ? ` [${dept.location_type}]` : ' [no location]';
+      console.log(`  ✅ ${dept.city_code}${locationStr} - ${dept.department_code}: ${dept.bitrix24_group_id}`);
     }
 
     console.log('✅ Department groups seeded successfully');
@@ -224,11 +266,37 @@ async function verifySetup(): Promise<boolean> {
   try {
     console.log('🔍 Verifying setup...');
 
-    // Check department_groups
+    // Check cities
+    const { data: cities, error: citiesError } = await supabase
+      .from('cities')
+      .select('code, name, has_town_township, is_active, display_order')
+      .eq('is_active', true)
+      .order('display_order');
+
+    if (citiesError) {
+      console.error('❌ Error reading cities:', citiesError.message);
+      return false;
+    }
+
+    console.log(`  ✅ Found ${cities?.length || 0} cities:`);
+    cities?.forEach(city => {
+      console.log(`     - ${city.code}: ${city.name} (Town/Township: ${city.has_town_township ? 'Yes' : 'No'})`);
+    });
+
+    // Check department groups with city names
     const { data: depts, error: deptError } = await supabase
       .from('department_groups')
-      .select('code, name, bitrix24_group_id, is_active')
-      .order('code');
+      .select(`
+        city_id,
+        location_type,
+        department_code,
+        department_name,
+        bitrix24_group_id,
+        bitrix24_drive_folder_id,
+        cities:city_id(code, name)
+      `)
+      .eq('is_active', true)
+      .order('city_id, department_code, location_type');
 
     if (deptError) {
       console.error('❌ Error reading department_groups:', deptError.message);
@@ -236,8 +304,10 @@ async function verifySetup(): Promise<boolean> {
     }
 
     console.log(`  ✅ Found ${depts?.length || 0} department groups:`);
-    depts?.forEach(dept => {
-      console.log(`     - ${dept.code}: ${dept.name} (Group ID: ${dept.bitrix24_group_id})`);
+    depts?.forEach((dept: any) => {
+      const city = dept.cities;
+      const locationStr = dept.location_type ? ` [${dept.location_type}]` : '';
+      console.log(`     - ${city?.code || 'unknown'}${locationStr} - ${dept.department_code}: Group ${dept.bitrix24_group_id}`);
     });
 
     // Check app_config
@@ -292,11 +362,24 @@ async function main() {
   }
 
   console.log('');
-  
-  // Step 2: Seed department groups
-  console.log('STEP 2: Seed Department Groups');
+
+  // Step 2: Seed cities
+  console.log('STEP 2: Seed Cities');
   console.log('─'.repeat(60));
-  const deptSuccess = await seedDepartmentGroups();
+  let cityIdMap: Record<string, string>;
+  try {
+    cityIdMap = await seedCities();
+  } catch (error) {
+    console.error('❌ Failed to seed cities');
+    process.exit(1);
+  }
+
+  console.log('');
+
+  // Step 3: Seed department groups
+  console.log('STEP 3: Seed Department Groups');
+  console.log('─'.repeat(60));
+  const deptSuccess = await seedDepartmentGroups(cityIdMap);
   if (!deptSuccess) {
     console.error('❌ Failed to seed department groups');
     process.exit(1);
@@ -304,8 +387,8 @@ async function main() {
 
   console.log('');
 
-  // Step 3: Seed app config
-  console.log('STEP 3: Seed App Configuration');
+  // Step 4: Seed app config
+  console.log('STEP 4: Seed App Configuration');
   console.log('─'.repeat(60));
   const configSuccess = await seedAppConfig();
   if (!configSuccess) {
@@ -315,8 +398,8 @@ async function main() {
 
   console.log('');
 
-  // Step 4: Verify setup
-  console.log('STEP 4: Verify Setup');
+  // Step 5: Verify setup
+  console.log('STEP 5: Verify Setup');
   console.log('─'.repeat(60));
   const verifySuccess = await verifySetup();
   if (!verifySuccess) {
@@ -330,10 +413,11 @@ async function main() {
   console.log('═'.repeat(60));
   console.log('');
   console.log('📝 Next Steps:');
-  console.log('   1. Update department_groups with your actual Bitrix24 IDs');
-  console.log('   2. Update app_config values as needed');
+  console.log('   1. Update cities with your actual city names and codes');
+  console.log('   2. Update department_groups with your actual Bitrix24 group IDs');
   console.log('   3. Add drive folder IDs if available');
-  console.log('   4. Update your app config loader to read from Supabase');
+  console.log('   4. Update app_config values as needed');
+  console.log('   5. Test the app configuration loading');
   console.log('');
 }
 
@@ -342,4 +426,3 @@ main().catch(error => {
   console.error('❌ Fatal error:', error);
   process.exit(1);
 });
-

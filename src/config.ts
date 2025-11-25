@@ -62,31 +62,15 @@ configLoader.initialize().then(() => {
 });
 
 // Get configuration (synchronous access)
-// Returns Supabase config if loaded, otherwise falls back to env/fallback
+// Returns legacy AppConfig format for backward compatibility
+// Note: For city/location-based config, use configLoader.getDepartmentGroupId() directly
 export function getConfig(): AppConfig {
-  // Check if Supabase config is available
-  const supabaseConfig = configLoader.getConfig();
-  if (supabaseConfig) {
-    // Always use webhook URL from env (security)
-    return {
-      ...supabaseConfig,
-      bitrix24: {
-        ...supabaseConfig.bitrix24,
-        webhookUrl: import.meta.env.VITE_BITRIX24_WEBHOOK_URL || supabaseConfig.bitrix24.webhookUrl,
-      },
-    };
-  }
+  // Use legacy config for synchronous access
+  // For new city/location-based routing, components should use configLoader directly
   
   // Fallback: use window config if available, otherwise fallback
   if (typeof window !== 'undefined' && (window as any).APP_CONFIG) {
-    const windowConfig = { ...fallbackConfig, ...(window as any).APP_CONFIG };
-    return {
-      ...windowConfig,
-      bitrix24: {
-        ...windowConfig.bitrix24,
-        webhookUrl: import.meta.env.VITE_BITRIX24_WEBHOOK_URL || windowConfig.bitrix24.webhookUrl,
-      },
-    };
+    return { ...fallbackConfig, ...(window as any).APP_CONFIG };
   }
   
   return fallbackConfig;
@@ -97,8 +81,8 @@ export function getConfig(): AppConfig {
 export const config: AppConfig = getConfig();
 
 // Refresh config from Supabase (call this when config changes)
-export async function refreshConfig(): Promise<AppConfig> {
-  return await configLoader.refresh();
+export async function refreshConfig(): Promise<void> {
+  await configLoader.refresh();
 }
 
 // Legacy export for compatibility

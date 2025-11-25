@@ -4,6 +4,7 @@
 import { config } from '../config';
 import { FaultReport, Bitrix24Task, SubmitResult } from '../types';
 import { debugLogger } from './debugLogger';
+import { configLoader } from './configLoader';
 
 class Bitrix24Service {
   /**
@@ -22,9 +23,18 @@ class Bitrix24Service {
   async createTaskFromFault(faultReport: FaultReport, file?: File): Promise<SubmitResult> {
     try {
       await debugLogger.log('INFO', '=== START: Creating task from fault ===');
-      await debugLogger.log('INFO', `Fault Type: ${faultReport.formType}`, { hasFile: !!file, fileSize: file?.size });
+      await debugLogger.log('INFO', `Fault Type: ${faultReport.formType}`, {
+        hasFile: !!file,
+        fileSize: file?.size,
+        cityCode: faultReport.cityCode,
+        locationType: faultReport.locationType,
+      });
       
-      const groupId = this.getGroupId(faultReport.formType);
+      const groupId = await this.getGroupId(
+        faultReport.formType,
+        faultReport.cityCode,
+        faultReport.locationType
+      );
       
       console.log(`Creating task for ${faultReport.formType} fault, Group ID: ${groupId}`);
       await debugLogger.log('INFO', `Creating task for ${faultReport.formType}, Group ID: ${groupId}`);
@@ -568,7 +578,14 @@ class Bitrix24Service {
 
       // Method 2: Automatic - Get workgroup's storage and upload there
       console.log(`📂 METHOD 2: Using automatic storage lookup for ${faultType}`);
-      const groupId = this.getGroupId(faultType);
+      // Fallback: use default config for drive folder lookup
+      const groupMap: Record<string, string> = {
+        'Water': config.bitrix24.groups.water,
+        'Electricity': config.bitrix24.groups.electricity,
+        'Roads': config.bitrix24.groups.roads,
+        'Waste': config.bitrix24.groups.waste
+      };
+      const groupId = groupMap[faultType] || config.bitrix24.groups.water;
       console.log('🔍 Looking up storage for workgroup ID:', groupId);
       
       const storageResult = await this.getWorkgroupStorageId(groupId);
@@ -731,18 +748,60 @@ Please investigate and resolve this issue promptly.
   }
 
   /**
-   * Get group ID based on fault type (Fixed to use config)
+   * Get group ID based on city, location type, and fault type
+   * Falls back to legacy config if Supabase config not available
    */
-  private getGroupId(faultType: string): string {
+  private async getGroupId(
+    faultType: string,
+    cityCode?: string,
+    locationType?: 'town' | 'township' | null
+  ): Promise<string> {
+    // Map fault type to department code
+    const departmentMap: Record<string, 'water' | 'electricity' | 'roads' | 'waste'> = {
+      'Water': 'water',
+      'Electricity': 'electricity',
+      'Roads': 'roads',
+      'Waste': 'waste',
+    };
+
+    const departmentCode = departmentMap[faultType] || 'water';
+
+    // Try to get from Supabase config if city and location are provided
+    if (cityCode) {
+      const groupId = await configLoader.getDepartmentGroupId(
+        cityCode,
+        locationType || null,
+        departmentCode
+      );
+
+      if (groupId) {
+        await debugLogger.log('INFO', `Routing ${faultType} fault via Supabase config`, {
+          cityCode,
+          locationType: locationType || 'none',
+          departmentCode,
+          groupId,
+        });
+        return groupId;
+      }
+
+      // Log if Supabase lookup failed
+      await debugLogger.log('WARN', 'Supabase group ID lookup failed, falling back to legacy config', {
+        cityCode,
+        locationType: locationType || 'none',
+        departmentCode,
+      });
+    }
+
+    // Fallback to legacy config
     const groupMap: Record<string, string> = {
       'Water': config.bitrix24.groups.water,
       'Electricity': config.bitrix24.groups.electricity,
       'Roads': config.bitrix24.groups.roads,
-      'Waste': config.bitrix24.groups.waste
+      'Waste': config.bitrix24.groups.waste,
     };
 
     const groupId = groupMap[faultType] || config.bitrix24.groups.water;
-    console.log(`Routing ${faultType} fault to group ID: ${groupId}`);
+    console.log(`Routing ${faultType} fault to group ID: ${groupId} (legacy config)`);
     return groupId;
   }
 
