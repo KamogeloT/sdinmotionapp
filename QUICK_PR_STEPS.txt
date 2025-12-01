@@ -1,0 +1,19 @@
+═══════════════════════════════════════════════════════════════
+           QUICK STEPS TO CREATE PULL REQUEST
+═══════════════════════════════════════════════════════════════
+
+1. PUSH BRANCH:
+   git push -u origin feature/area-selection
+   
+   (Enter GitHub username and Personal Access Token when prompted)
+
+2. CREATE PR:
+   Open this link in your browser:
+   https://github.com/KamogeloT/sdinmotionapp/compare/master...feature/area-selection
+
+3. COPY DESCRIPTION:
+   Open PULL_REQUEST.md and copy the entire content into the PR description
+
+4. CLICK "Create pull request"
+
+═══════════════════════════════════════════════════════════════
