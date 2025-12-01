@@ -24,7 +24,7 @@ class Bitrix24Service {
       await debugLogger.log('INFO', '=== START: Creating task from fault ===');
       await debugLogger.log('INFO', `Fault Type: ${faultReport.formType}`, { hasFile: !!file, fileSize: file?.size });
       
-      const groupId = this.getGroupId(faultReport.formType);
+      const groupId = this.getGroupId(faultReport.formType, faultReport.city);
       
       console.log(`Creating task for ${faultReport.formType} fault, Group ID: ${groupId}`);
       await debugLogger.log('INFO', `Creating task for ${faultReport.formType}, Group ID: ${groupId}`);
@@ -418,6 +418,31 @@ class Bitrix24Service {
   }
 
   /**
+   * Get configured storage ID and root object ID for a department (bypasses API lookup)
+   */
+  private getConfiguredStorageInfo(faultType: string, city?: string): { storageId?: string; rootObjectId?: string } {
+    // Default to Potchefstroom if no city specified
+    const selectedCity = (city === 'Ventersdorp' || city === 'Potchefstroom') 
+      ? city 
+      : 'Potchefstroom';
+    
+    const cityStorage = config.bitrix24.storage[selectedCity];
+    
+    const storageMap: Record<string, { storageId: string; rootObjectId: string }> = {
+      'Water': cityStorage.water,
+      'Electricity': cityStorage.electricity,
+      'Roads': cityStorage.roads,
+      'Waste': cityStorage.waste
+    };
+
+    const storageInfo = storageMap[faultType];
+    return {
+      storageId: storageInfo?.storageId,
+      rootObjectId: storageInfo?.rootObjectId
+    };
+  }
+
+  /**
    * Upload file to workgroup's Drive using the group ID
    * Supports both manual folder ID configuration and automatic storage lookup
    */
@@ -466,7 +491,7 @@ class Bitrix24Service {
     });
   }
 
-  async uploadFileToDrive(file: File, faultType: string): Promise<{ success: boolean; fileId?: string; error?: string }> {
+  async uploadFileToDrive(file: File, faultType: string, city?: string): Promise<{ success: boolean; fileId?: string; error?: string }> {
     try {
       console.log(`Uploading file: ${file.name} for fault type: ${faultType}`);
       console.log('📄 File size:', file.size, 'bytes');
@@ -566,36 +591,57 @@ class Bitrix24Service {
         }
       }
 
-      // Method 2: Automatic - Get workgroup's storage and upload there
-      console.log(`📂 METHOD 2: Using automatic storage lookup for ${faultType}`);
-      const groupId = this.getGroupId(faultType);
-      console.log('🔍 Looking up storage for workgroup ID:', groupId);
+      // Method 2: Try configured storage IDs first, then fallback to API lookup
+      console.log(`📂 METHOD 2: Checking configured storage for ${faultType}`);
       
-      const storageResult = await this.getWorkgroupStorageId(groupId);
+      // First, try using configured storage and root object IDs (fastest)
+      const configuredStorage = this.getConfiguredStorageInfo(faultType, city);
       
-      if (!storageResult.success || !storageResult.storageId) {
-        console.error('❌ METHOD 2 FAILED: Could not get workgroup storage');
-        console.error('Storage error:', storageResult.error);
-        return {
-          success: false,
-          error: `METHOD 1 & 2 FAILED. Storage lookup error: ${storageResult.error || 'Could not access workgroup Drive'}`
-        };
+      let storageId: string | undefined;
+      let rootObjectId: string | undefined;
+      
+      if (configuredStorage.storageId && configuredStorage.rootObjectId) {
+        console.log('✅ Using configured storage IDs (bypassing API lookup)');
+        storageId = configuredStorage.storageId;
+        rootObjectId = configuredStorage.rootObjectId;
+        console.log(`📦 Storage ID: ${storageId}, Root Object ID: ${rootObjectId}`);
+      } else {
+        // Fallback: Look up storage via API
+        console.log('🔍 Configured storage not available, looking up via API...');
+        const groupId = this.getGroupId(faultType, city);
+        console.log('🔍 Looking up storage for workgroup ID:', groupId);
+        
+        const storageResult = await this.getWorkgroupStorageId(groupId);
+        
+        if (!storageResult.success || !storageResult.storageId) {
+          console.error('❌ METHOD 2 FAILED: Could not get workgroup storage');
+          console.error('Storage error:', storageResult.error);
+          return {
+            success: false,
+            error: `METHOD 1 & 2 FAILED. Storage lookup error: ${storageResult.error || 'Could not access workgroup Drive'}`
+          };
+        }
+
+        storageId = storageResult.storageId;
+        console.log('✓ Storage found via API:', storageId);
       }
 
-      console.log('✓ Storage found:', storageResult.storageId);
-
-      // Upload file to workgroup's Drive storage using base64 format
+      // Upload file to workgroup's Drive using root object ID (preferred) or storage ID
+      // Use root object ID if available (faster, more direct)
+      const uploadTargetId = rootObjectId || storageId;
+      const uploadMethod = rootObjectId ? 'disk.folder.uploadfile' : 'disk.storage.uploadfile';
+      
       // Use URLSearchParams for proper URL-encoded format
       const params = new URLSearchParams();
-      params.append('id', storageResult.storageId);
+      params.append('id', uploadTargetId!);
       params.append('data[NAME]', file.name);  // Use array notation, not JSON.stringify
       params.append('fileContent[name]', file.name);
       params.append('fileContent[content]', base64Content);
       
-      const uploadUrl = `${webhookUrl}/disk.storage.uploadfile.json`;
+      const uploadUrl = `${webhookUrl}/${uploadMethod}.json`;
       
       console.log('🔗 Upload URL:', uploadUrl);
-      console.log('📦 Uploading to storage ID:', storageResult.storageId);
+      console.log(`📦 Uploading to ${rootObjectId ? 'root folder' : 'storage'} ID:`, uploadTargetId);
       console.log('📄 File name:', file.name);
 
       let uploadResponse;
@@ -739,18 +785,25 @@ Please investigate and resolve this issue promptly.
   }
 
   /**
-   * Get group ID based on fault type (Fixed to use config)
+   * Get group ID based on fault type and city
    */
-  private getGroupId(faultType: string): string {
+  private getGroupId(faultType: string, city?: string): string {
+    // Default to Potchefstroom if no city specified
+    const selectedCity = (city === 'Ventersdorp' || city === 'Potchefstroom') 
+      ? city 
+      : 'Potchefstroom'; // Default fallback
+    
+    const cityGroups = config.bitrix24.groups[selectedCity];
+    
     const groupMap: Record<string, string> = {
-      'Water': config.bitrix24.groups.water,
-      'Electricity': config.bitrix24.groups.electricity,
-      'Roads': config.bitrix24.groups.roads,
-      'Waste': config.bitrix24.groups.waste
+      'Water': cityGroups.water,
+      'Electricity': cityGroups.electricity,
+      'Roads': cityGroups.roads,
+      'Waste': cityGroups.waste
     };
 
-    const groupId = groupMap[faultType] || config.bitrix24.groups.water;
-    console.log(`Routing ${faultType} fault to group ID: ${groupId}`);
+    const groupId = groupMap[faultType] || cityGroups.water;
+    console.log(`Routing ${faultType} fault to ${selectedCity} group ID: ${groupId}`);
     return groupId;
   }
 
